@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maintenance &amp; Planning Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F3F5F8;
+    --panel: #FFFFFF;
+    --panel-alt: #F3F6FA;
+    --border: #E1E7EE;
+    --text: #1C2530;
+    --text-muted: #5C6B7D;
+    --text-dim: #93A0B0;
+    --ok: #2E9C6C; --ok-bg: rgba(46,156,108,0.10);
+    --warn: #C6821E; --warn-bg: rgba(198,130,30,0.11);
+    --crit: #C6402E; --crit-bg: rgba(198,64,46,0.11);
+    --accent: #3068A8; --accent-bg: rgba(48,104,168,0.09);
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+    min-height: 100%; -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  header {
+    padding: 22px clamp(16px, 4vw, 40px) 0;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: env(safe-area-inset-top, 0px);
+    background: var(--bg); z-index: 20;
+  }
+  .header-top { display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-between; align-items: flex-end; padding-bottom: 16px; }
+  .brand-eyebrow { font-size: 12px; color: var(--text-dim); letter-spacing: 0.04em; margin: 0 0 6px; }
+  h1 { margin: 0; font-size: clamp(19px, 3vw, 25px); font-weight: 600; letter-spacing: -0.01em; }
+  .demand-control {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 11px 16px; min-width: 300px;
+    box-shadow: 0 1px 2px rgba(20,30,45,0.04);
+  }
+  .demand-label { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+  .demand-value { font-family: 'IBM Plex Mono', monospace; font-size: 19px; font-weight: 600; color: var(--warn); min-width: 54px; text-align: right; }
+  input[type="range"] {
+    flex: 1; -webkit-appearance: none; height: 4px; border-radius: 2px;
+    background: linear-gradient(90deg, var(--ok), var(--warn), var(--crit)); outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--accent); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  }
+  .overtime-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); cursor: pointer; user-select: none; }
+  .overtime-toggle input { accent-color: var(--warn); width: 15px; height: 15px; }
+
+  .tabs { display: flex; gap: 4px; overflow-x: auto; }
+  .tab-btn {
+    background: none; border: none; color: var(--text-dim);
+    font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; font-weight: 500;
+    padding: 10px 4px 12px; cursor: pointer; border-bottom: 2px solid transparent;
+    margin-right: 22px; white-space: nowrap; transition: color 0.15s ease;
+  }
+  .tab-btn:hover { color: var(--text-muted); }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  /* Alarm banner */
+  .alarm-strip {
+    display: flex; gap: 10px; overflow-x: auto; padding: 10px clamp(16px, 4vw, 40px);
+    background: var(--crit-bg); border-bottom: 1px solid var(--border);
+  }
+  .alarm-strip.empty { background: var(--ok-bg); }
+  .alarm-chip {
+    display: flex; align-items: center; gap: 7px; white-space: nowrap;
+    background: var(--panel); border: 1px solid var(--crit); color: var(--crit);
+    font-size: 11.5px; font-weight: 600; padding: 5px 12px; border-radius: 20px;
+  }
+  .alarm-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--crit); flex-shrink: 0; }
+  .alarm-ok-msg { font-size: 12px; color: var(--ok); font-weight: 500; padding: 5px 4px; }
+
+  main { padding: 22px clamp(16px, 4vw, 40px) 60px; max-width: 1360px; margin: 0 auto; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .grid-2col { display: grid; grid-template-columns: minmax(280px, 340px) 1fr; gap: 18px; }
+  @media (max-width: 860px) { .grid-2col { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(20,30,45,0.03); }
+  .panel-head { padding: 15px 18px 11px; border-bottom: 1px solid var(--border); }
+  .panel-title { font-size: 13px; font-weight: 600; color: var(--text); margin: 0 0 2px; }
+  .panel-sub { font-size: 12px; color: var(--text-dim); margin: 0; }
+
+  .machine-list { max-height: 640px; overflow-y: auto; }
+  .machine-row { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s ease; }
+  .machine-row:last-child { border-bottom: none; }
+  .machine-row:hover { background: var(--panel-alt); }
+  .machine-row.selected { background: var(--panel-alt); box-shadow: inset 3px 0 0 var(--accent); }
+  .status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.ok { background: var(--ok); }
+  .status-dot.warn { background: var(--warn); }
+  .status-dot.crit { background: var(--crit); box-shadow: 0 0 0 3px var(--crit-bg); }
+  .machine-info { flex: 1; min-width: 0; }
+  .machine-name { font-size: 13.5px; font-weight: 500; margin: 0 0 2px; }
+  .machine-id { font-size: 11px; color: var(--text-dim); }
+  .risk-badge { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 5px; flex-shrink: 0; }
+  .risk-badge.ok { color: var(--ok); background: var(--ok-bg); }
+  .risk-badge.warn { color: var(--warn); background: var(--warn-bg); }
+  .risk-badge.crit { color: var(--crit); background: var(--crit-bg); }
+
+  .detail-body { padding: 18px; display: flex; flex-direction: column; gap: 18px; }
+  .detail-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .detail-machine-name { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  .detail-machine-meta { font-size: 12.5px; color: var(--text-muted); }
+  .big-risk { text-align: right; }
+  .big-risk-val { font-family: 'IBM Plex Mono', monospace; font-size: 30px; font-weight: 600; line-height: 1; }
+  .big-risk-label { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 10px; }
+  .metric-card { background: var(--panel-alt); border: 1px solid var(--border); border-radius: 9px; padding: 11px 13px; }
+  .metric-card-label { font-size: 10.5px; color: var(--text-dim); margin: 0 0 6px; }
+  .metric-card-value { font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 600; margin: 0; }
+
+  .section-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center; }
+
+  .batch-list { display: flex; flex-direction: column; gap: 8px; }
+  .batch-item { display: flex; justify-content: space-between; align-items: center; background: var(--panel-alt); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
+  .batch-name { font-size: 13px; font-weight: 500; }
+  .batch-priority { font-size: 11px; color: var(--text-dim); }
+  .exposure-tag { font-size: 10.5px; font-weight: 600; padding: 3px 8px; border-radius: 5px; border: 1px solid var(--border); color: var(--text-muted); background: var(--panel); }
+
+  .action-row { display: flex; justify-content: space-between; align-items: center; background: var(--panel-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; gap: 12px; flex-wrap: wrap; }
+  .action-label { font-size: 13px; }
+  .action-sub { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+  .pill { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
+  .pill.instock { color: var(--ok); background: var(--ok-bg); }
+  .pill.order { color: var(--crit); background: var(--crit-bg); }
+
+  .owner-row { display: flex; align-items: center; gap: 12px; }
+  .owner-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 600; flex-shrink: 0; }
+  .owner-name { font-size: 13px; font-weight: 500; }
+  .owner-role { font-size: 11.5px; color: var(--text-dim); }
+
+  select.status-select {
+    font-family: 'IBM Plex Sans', sans-serif; font-size: 11.5px; font-weight: 600;
+    border-radius: 6px; padding: 5px 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text-muted); cursor: pointer;
+  }
+
+  .chart-wrap { padding: 16px 18px 6px; }
+  svg { display: block; width: 100%; height: auto; }
+  .grid-line { stroke: var(--border); stroke-width: 1; }
+  .axis-label { fill: var(--text-dim); font-size: 10px; font-family: 'IBM Plex Mono', monospace; }
+  .curve-line { fill: none; stroke: var(--warn); stroke-width: 2; }
+  .curve-fill { fill: var(--warn); opacity: 0.10; }
+  .threshold-line { stroke: var(--crit); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.7; }
+  .marker-dot { fill: var(--panel); stroke: var(--warn); stroke-width: 2.5; }
+
+  /* Boiler cards with circular gauges */
+  .boiler-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; padding: 18px; }
+  .boiler-card { background: var(--panel-alt); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .boiler-card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .boiler-name { font-size: 14px; font-weight: 600; margin: 0 0 3px; }
+  .boiler-id { font-size: 11px; color: var(--text-dim); }
+  .dial-row { display: flex; gap: 8px; margin: 8px 0 10px; }
+  .dial-col { flex: 1; text-align: center; }
+  .dial-caption { font-size: 10.5px; color: var(--text-dim); margin-top: 2px; }
+  .dial-value { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; }
+  .sparkline-wrap { padding: 4px 0 8px; }
+  .boiler-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-muted); flex-wrap: wrap; gap: 6px; }
+
+  /* Team */
+  .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; padding: 18px; }
+  .team-card { background: var(--panel-alt); border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; }
+  .team-card.dispatch { box-shadow: inset 3px 0 0 var(--warn); }
+  .team-top { display: flex; align-items: center; gap: 11px; margin-bottom: 9px; }
+  .team-name { font-size: 13.5px; font-weight: 500; margin: 0 0 2px; }
+  .team-expertise { font-size: 11.5px; color: var(--text-dim); }
+  .team-status-row { display: flex; justify-content: space-between; align-items: center; }
+  .availability { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 5px; }
+  .availability.shift { color: var(--ok); background: var(--ok-bg); }
+  .availability.oncall { color: var(--warn); background: var(--warn-bg); }
+  .availability.off { color: var(--text-dim); background: var(--panel); }
+  .dispatch-tag { font-size: 10.5px; font-weight: 600; color: var(--warn); }
+
+  .coverage-summary { display: flex; gap: 14px; flex-wrap: wrap; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+  .coverage-stat { flex: 1; min-width: 130px; }
+  .coverage-stat-val { font-family: 'IBM Plex Mono', monospace; font-size: 21px; font-weight: 600; color: var(--accent); }
+  .coverage-stat-label { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+  /* Forecast tab */
+  .forecast-summary { display: flex; gap: 14px; flex-wrap: wrap; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+  .legend-row { display: flex; gap: 18px; padding: 0 18px 14px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-muted); }
+  .legend-swatch { width: 14px; height: 3px; border-radius: 2px; }
+
+  /* S&OP snapshot */
+  .sop-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; padding: 18px; }
+  .sop-card { background: var(--panel-alt); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .sop-card-label { font-size: 11.5px; color: var(--text-dim); margin: 0 0 8px; font-weight: 600; }
+  .sop-card-value { font-family: 'IBM Plex Mono', monospace; font-size: 26px; font-weight: 600; }
+  .sop-card-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 6px; }
+  .sop-list { padding: 0 18px 18px; }
+  .sop-list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--panel-alt); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; font-size: 12.5px; }
+  .sop-status { font-size: 10.5px; font-weight: 600; padding: 3px 9px; border-radius: 20px; }
+  .sop-status.planned { background: var(--accent-bg); color: var(--accent); }
+  .sop-status.progress { background: var(--warn-bg); color: var(--warn); }
+  .sop-status.resolved { background: var(--ok-bg); color: var(--ok); }
+
+  ::-webkit-scrollbar { height: 8px; width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div>
+      <p class="brand-eyebrow">MAINTENANCE &amp; PLANNING</p>
+      <h1>Command Center</h1>
+    </div>
+    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+      <div class="demand-control">
+        <span class="demand-label">Demand multiplier</span>
+        <input type="range" id="demandSlider" min="100" max="160" value="100" step="1">
+        <span class="demand-value mono" id="demandValue">100%</span>
+      </div>
+      <label class="overtime-toggle">
+        <input type="checkbox" id="overtimeToggle">
+        Overtime shift active
+      </label>
+    </div>
+  </div>
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="machines">Machines</button>
+    <button class="tab-btn" data-tab="boilers">Boilers &amp; Chillers</button>
+    <button class="tab-btn" data-tab="team">Team Coverage</button>
+    <button class="tab-btn" data-tab="forecast">Demand &amp; Forecast</button>
+    <button class="tab-btn" data-tab="sop">S&amp;OP Snapshot</button>
+  </nav>
+</header>
+
+<div class="alarm-strip" id="alarmStrip"></div>
+
+<main>
+
+  <div class="view active" id="view-machines">
+    <div class="grid-2col">
+      <section class="panel">
+        <div class="panel-head">
+          <p class="panel-title">Machines · Line 3, Parenteral Filling</p>
+          <p class="panel-sub" id="fleetSummary">—</p>
+        </div>
+        <div class="machine-list" id="machineList"></div>
+      </section>
+      <div style="display:flex; flex-direction:column; gap:18px;">
+        <section class="panel" id="detailPanel"></section>
+        <section class="panel">
+          <div class="panel-head">
+            <p class="panel-title">Risk vs. demand — selected machine</p>
+            <p class="panel-sub">Projected failure risk as demand load increases</p>
+          </div>
+          <div class="chart-wrap"><svg id="riskChart" viewBox="0 0 640 200" preserveAspectRatio="xMidYMid meet"></svg></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="view" id="view-boilers">
+    <section class="panel">
+      <div class="panel-head">
+        <p class="panel-title">Boiler &amp; chiller utilities</p>
+        <p class="panel-sub" id="boilerSummary">—</p>
+      </div>
+      <div class="boiler-grid" id="boilerGrid"></div>
+    </section>
+  </div>
+
+  <div class="view" id="view-team">
+    <section class="panel">
+      <div class="coverage-summary" id="coverageSummary"></div>
+      <div class="panel-head" style="border-top:1px solid var(--border);">
+        <p class="panel-title">Team of 10 — expertise &amp; current dispatch need</p>
+        <p class="panel-sub">Highlighted members are needed based on currently flagged equipment</p>
+      </div>
+      <div class="team-grid" id="teamGrid"></div>
+    </section>
+  </div>
+
+  <div class="view" id="view-forecast">
+    <section class="panel">
+      <div class="forecast-summary" id="forecastSummary"></div>
+      <div class="panel-head" style="border-top:1px solid var(--border);">
+        <p class="panel-title">Monthly demand — actuals, forecast &amp; capacity</p>
+        <p class="panel-sub">Statistical forecast (3-month moving average) vs. current production capacity</p>
+      </div>
+      <div class="chart-wrap"><svg id="forecastChart" viewBox="0 0 900 260" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="legend-row">
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--text-muted);"></span>Actual demand</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--accent); border-top:2px dashed var(--accent); height:0;"></span>Forecast</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--ok);"></span>Production capacity</div>
+      </div>
+    </section>
+  </div>
+
+  <div class="view" id="view-sop">
+    <section class="panel">
+      <div class="panel-head">
+        <p class="panel-title">S&amp;OP snapshot</p>
+        <p class="panel-sub">Rollup for a cross-functional demand-supply review at current settings</p>
+      </div>
+      <div class="sop-grid" id="sopGrid"></div>
+      <div class="panel-head" style="border-top:1px solid var(--border);">
+        <p class="panel-title">Open items &amp; plan status</p>
+        <p class="panel-sub">Flagged equipment and their current resolution status</p>
+      </div>
+      <div class="sop-list" id="sopList"></div>
+    </section>
+  </div>
+
+</main>
+
+<script>
+/* ---------- shared state ---------- */
+let demand = 100;
+let overtime = false;
+let selectedMachineId = null;
+const planStatus = {}; // id -> 'planned' | 'progress' | 'resolved'
+
+function riskFrom(baseline, sensitivity, demandPct, overtimeBump) {
+  const load = (demandPct - 100) / 100;
+  const raw = baseline + load * sensitivity * 55 + (overtime ? overtimeBump : 0);
+  return Math.max(3, Math.min(97, Math.round(raw)));
+}
+function statusFor(risk) { return risk >= 65 ? 'crit' : risk >= 40 ? 'warn' : 'ok'; }
+function statusLabel(s) { return s === 'crit' ? 'Critical' : s === 'warn' ? 'At risk' : 'Healthy'; }
+function initials(name) { return name.split(' ').map(p => p[0]).join(''); }
+function getStatus(id) { return planStatus[id] || 'planned'; }
+function statusChipClass(s) { return s === 'resolved' ? 'resolved' : s === 'progress' ? 'progress' : 'planned'; }
+function statusChipLabel(s) { return s === 'resolved' ? 'Resolved' : s === 'progress' ? 'In progress' : 'Planned'; }
+
+/* ---------- MACHINES ---------- */
+const MACHINES = [
+  { id: 'ISBM-04', name: 'ISBM Molding Unit 4', dept: 'Molding', expertise: 'Molding',
+    baseline: 22, sensitivity: 1.9, mtbf: '412 hrs', lastService: '11 days ago',
+    inStock: false, leadTime: '3–4 days', inHouseCapable: false,
+    unitsPerBatch: 4200, repairCostInHouse: 18000, repairCostExternal: 62000,
+    owner: 'R. Chandran', role: 'Vendor Liaison – Molding',
+    batches: [{ name: 'Batch PB-2207', priority: 'High · export order', tag: 'crit' }, { name: 'Batch PB-2211', priority: 'Medium · domestic', tag: 'warn' }] },
+  { id: 'FIL-02', name: 'Filling Line 2', dept: 'Filling', expertise: 'Filling',
+    baseline: 35, sensitivity: 1.4, mtbf: '680 hrs', lastService: '4 days ago',
+    inStock: true, leadTime: 'In stock', inHouseCapable: true,
+    unitsPerBatch: 6100, repairCostInHouse: 9000, repairCostExternal: 31000,
+    owner: 'S. Meenakshi', role: 'Maintenance Lead – Filling',
+    batches: [{ name: 'Batch PB-2209', priority: 'High · export order', tag: 'crit' }] },
+  { id: 'AUTOCLAVE-01', name: 'Autoclave Sterilizer 1', dept: 'Sterilization', expertise: 'Sterilization',
+    baseline: 18, sensitivity: 1.1, mtbf: '920 hrs', lastService: '2 days ago',
+    inStock: true, leadTime: 'In stock', inHouseCapable: true,
+    unitsPerBatch: 2800, repairCostInHouse: 7000, repairCostExternal: 21000,
+    owner: 'A. Ramesh', role: 'Shift Supervisor',
+    batches: [{ name: 'Batch PB-2204', priority: 'Low · buffer stock', tag: 'ok' }] },
+  { id: 'CONV-07', name: 'Conveyor Transfer 7', dept: 'Packaging', expertise: 'Packaging',
+    baseline: 40, sensitivity: 1.6, mtbf: '350 hrs', lastService: '19 days ago',
+    inStock: false, leadTime: '5–6 days', inHouseCapable: false,
+    unitsPerBatch: 5300, repairCostInHouse: 12000, repairCostExternal: 47000,
+    owner: 'R. Chandran', role: 'Vendor Liaison – Molding',
+    batches: [{ name: 'Batch PB-2207', priority: 'High · export order', tag: 'crit' }, { name: 'Batch PB-2212', priority: 'Medium · domestic', tag: 'warn' }] },
+  { id: 'CAP-03', name: 'Capping Station 3', dept: 'Packaging', expertise: 'Packaging',
+    baseline: 15, sensitivity: 0.9, mtbf: '780 hrs', lastService: '6 days ago',
+    inStock: true, leadTime: 'In stock', inHouseCapable: true,
+    unitsPerBatch: 3900, repairCostInHouse: 5000, repairCostExternal: 16000,
+    owner: 'S. Meenakshi', role: 'Maintenance Lead – Filling',
+    batches: [{ name: 'Batch PB-2211', priority: 'Medium · domestic', tag: 'warn' }] }
+];
+selectedMachineId = MACHINES[0].id;
+
+function machineRisk(m) { return riskFrom(m.baseline, m.sensitivity, demand, 8); }
+function fmtMoney(n) { return '₹' + n.toLocaleString('en-IN'); }
+
+function renderMachines() {
+  const list = document.getElementById('machineList');
+  list.innerHTML = '';
+  let flagged = 0;
+  MACHINES.forEach(m => {
+    const risk = machineRisk(m);
+    const status = statusFor(risk);
+    if (status !== 'ok') flagged++;
+    const row = document.createElement('div');
+    row.className = 'machine-row' + (m.id === selectedMachineId ? ' selected' : '');
+    row.onclick = () => { selectedMachineId = m.id; renderMachineDetail(); renderChart(); };
+    row.innerHTML = `
+      <span class="status-dot ${status}"></span>
+      <div class="machine-info"><p class="machine-name">${m.name}</p><p class="machine-id mono">${m.id} · ${m.dept}</p></div>
+      <span class="risk-badge ${status} mono">${risk}%</span>`;
+    list.appendChild(row);
+  });
+  document.getElementById('fleetSummary').textContent =
+    `${flagged} of ${MACHINES.length} flagged at ${demand}% demand${overtime ? ' · overtime active' : ''}`;
+}
+
+function renderMachineDetail() {
+  const m = MACHINES.find(x => x.id === selectedMachineId);
+  const panel = document.getElementById('detailPanel');
+  if (!m) return;
+  const risk = machineRisk(m);
+  const status = statusFor(risk);
+  const stockPill = m.inStock ? `<span class="pill instock">In stock</span>` : `<span class="pill order">Order required · ${m.leadTime}</span>`;
+  const repairPath = m.inHouseCapable ? 'In-house repair capable' : 'External vendor support required';
+  const colorVar = status === 'ok' ? 'var(--ok)' : status === 'warn' ? 'var(--warn)' : 'var(--crit)';
+  const outputAtRisk = m.batches.reduce((s,b) => s + m.unitsPerBatch * (b.tag==='crit'?1:b.tag==='warn'?0.6:0.2), 0);
+  const curStatus = getStatus(m.id);
+
+  panel.innerHTML = `
+    <div class="panel-head">
+      <p class="panel-title">Machine detail</p>
+      <p class="panel-sub">Live projection at ${demand}% demand${overtime ? ', overtime shift' : ''}</p>
+    </div>
+    <div class="detail-body">
+      <div class="detail-header">
+        <div>
+          <p class="detail-machine-name">${m.name}</p>
+          <p class="detail-machine-meta mono">${m.id} · ${m.dept} · MTBF ${m.mtbf} · last serviced ${m.lastService}</p>
+        </div>
+        <div class="big-risk">
+          <div class="big-risk-val" style="color:${colorVar}">${risk}%</div>
+          <div class="big-risk-label">${statusLabel(status)}</div>
+        </div>
+      </div>
+      <div class="metric-grid">
+        <div class="metric-card"><p class="metric-card-label">Failure risk</p><p class="metric-card-value">${risk}%</p></div>
+        <div class="metric-card"><p class="metric-card-label">Units at risk</p><p class="metric-card-value">${Math.round(outputAtRisk).toLocaleString('en-IN')}</p></div>
+        <div class="metric-card"><p class="metric-card-label">In-house repair</p><p class="metric-card-value">${fmtMoney(m.repairCostInHouse)}</p></div>
+        <div class="metric-card"><p class="metric-card-label">External repair</p><p class="metric-card-value">${fmtMoney(m.repairCostExternal)}</p></div>
+      </div>
+      <div>
+        <p class="section-label">
+          <span>Batches at risk if this machine goes down</span>
+        </p>
+        <div class="batch-list">
+          ${m.batches.map(b => `
+            <div class="batch-item">
+              <div><div class="batch-name">${b.name}</div><div class="batch-priority">${b.priority}</div></div>
+              <span class="exposure-tag">${b.tag === 'crit' ? 'High exposure' : b.tag === 'warn' ? 'Medium exposure' : 'Low exposure'}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+      <div>
+        <p class="section-label">Spares &amp; procurement</p>
+        <div class="action-row">
+          <div><div class="action-label">Critical spare part availability</div><div class="action-sub">${repairPath} · in-house saves ~${fmtMoney(m.repairCostExternal - m.repairCostInHouse)}</div></div>
+          ${stockPill}
+        </div>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div class="owner-row">
+          <div class="owner-avatar">${initials(m.owner)}</div>
+          <div><div class="owner-name">${m.owner}</div><div class="owner-role">${m.role}</div></div>
+        </div>
+        <select class="status-select" data-id="${m.id}" data-kind="machine">
+          <option value="planned" ${curStatus==='planned'?'selected':''}>Planned</option>
+          <option value="progress" ${curStatus==='progress'?'selected':''}>In progress</option>
+          <option value="resolved" ${curStatus==='resolved'?'selected':''}>Resolved</option>
+        </select>
+      </div>
+    </div>`;
+
+  panel.querySelector('select.status-select').addEventListener('change', (e) => {
+    planStatus[m.id] = e.target.value;
+    renderSop();
+  });
+}
+
+function renderChart() {
+  const m = MACHINES.find(x => x.id === selectedMachineId);
+  const svg = document.getElementById('riskChart');
+  if (!m) return;
+  const W = 640, H = 200, padL = 36, padR = 16, padT = 14, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const points = [];
+  for (let d = 100; d <= 160; d += 4) {
+    const r = riskFrom(m.baseline, m.sensitivity, d, 8);
+    points.push([padL + ((d-100)/60)*plotW, padT + (1 - r/100)*plotH]);
+  }
+  const linePath = points.map((p,i) => (i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  const fillPath = linePath + ` L${points[points.length-1][0].toFixed(1)},${padT+plotH} L${points[0][0].toFixed(1)},${padT+plotH} Z`;
+  const thresholdY = padT + (1-0.65)*plotH;
+  const curX = padL + ((demand-100)/60)*plotW;
+  const curY = padT + (1 - machineRisk(m)/100)*plotH;
+  let gridLines = '';
+  [0,25,50,75,100].forEach(v => {
+    const y = padT + (1-v/100)*plotH;
+    gridLines += `<line class="grid-line" x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" /><text class="axis-label" x="${padL-8}" y="${y+3}" text-anchor="end">${v}</text>`;
+  });
+  let xLabels = '';
+  [100,120,140,160].forEach(v => {
+    const x = padL + ((v-100)/60)*plotW;
+    xLabels += `<text class="axis-label" x="${x}" y="${H-8}" text-anchor="middle">${v}%</text>`;
+  });
+  svg.innerHTML = `${gridLines}
+    <line class="threshold-line" x1="${padL}" y1="${thresholdY}" x2="${W-padR}" y2="${thresholdY}" />
+    <text class="axis-label" x="${W-padR}" y="${thresholdY-6}" text-anchor="end" fill="var(--crit)">critical threshold</text>
+    <path class="curve-fill" d="${fillPath}" /><path class="curve-line" d="${linePath}" />
+    <line x1="${curX}" y1="${padT}" x2="${curX}" y2="${padT+plotH}" stroke="var(--border)" stroke-width="1" />
+    <circle class="marker-dot" cx="${curX}" cy="${curY}" r="5" />${xLabels}`;
+}
+
+/* ---------- BOILERS & CHILLERS (with circular gauges + sparkline) ---------- */
+const UTILITIES = [
+  { id: 'BLR-01', name: 'Boiler 1', type: 'Steam Boiler', expertise: 'Boilers',
+    tempRange: [150,195], pressRange: [5,10], sensitivity: 1.3, owner: 'V. Suresh', role: 'Utilities Engineer' },
+  { id: 'BLR-02', name: 'Boiler 2', type: 'Steam Boiler', expertise: 'Boilers',
+    tempRange: [150,195], pressRange: [5,10], sensitivity: 1.6, owner: 'V. Suresh', role: 'Utilities Engineer' },
+  { id: 'CHL-01', name: 'Chiller 1', type: 'Process Chiller', expertise: 'Chillers',
+    tempRange: [4,14], pressRange: [2,5], sensitivity: 1.1, owner: 'N. Iyer', role: 'Utilities Technician' },
+  { id: 'CHL-02', name: 'Chiller 2', type: 'Process Chiller', expertise: 'Chillers',
+    tempRange: [4,14], pressRange: [2,5], sensitivity: 1.4, owner: 'N. Iyer', role: 'Utilities Technician' }
+];
+
+function utilLoadPct(u) {
+  const load = (demand - 100) / 100;
+  const pct = 55 + load * u.sensitivity * 60 + (overtime ? 6 : 0);
+  return Math.max(20, Math.min(99, Math.round(pct)));
+}
+function utilStatus(pct) { return pct >= 88 ? 'crit' : pct >= 72 ? 'warn' : 'ok'; }
+function utilColor(status) { return status === 'crit' ? 'var(--crit)' : status === 'warn' ? 'var(--warn)' : 'var(--ok)'; }
+function utilColorHex(status) { return status === 'crit' ? '#C6402E' : status === 'warn' ? '#C6821E' : '#2E9C6C'; }
+
+function arcGauge(pct, colorHex, size) {
+  // semicircular gauge, 180deg sweep
+  const r = size/2 - 8;
+  const cx = size/2, cy = size/2 + 2;
+  const startAngle = Math.PI, endAngle = Math.PI - (pct/100)*Math.PI;
+  const x1 = cx + r*Math.cos(startAngle), y1 = cy + r*Math.sin(startAngle);
+  const x2 = cx + r*Math.cos(0), y2 = cy + r*Math.sin(0);
+  const xv = cx + r*Math.cos(endAngle), yv = cy + r*Math.sin(endAngle);
+  const largeArc = pct > 50 ? 1 : 0;
+  return `
+    <svg viewBox="0 0 ${size} ${size*0.62}" width="100%" style="overflow:visible;">
+      <path d="M ${x1} ${y1} A ${r} ${r} 0 1 1 ${x2} ${y2}" fill="none" stroke="#E1E7EE" stroke-width="9" stroke-linecap="round" />
+      <path d="M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${xv} ${yv}" fill="none" stroke="${colorHex}" stroke-width="9" stroke-linecap="round" />
+    </svg>`;
+}
+
+function sparkline(seed, sensitivity) {
+  // simulate rising historical trend approaching current demand load
+  const W=260, H=44, pts=[];
+  for (let i=0;i<12;i++){
+    const t = i/11;
+    const simDemand = 100 + t*(demand-100);
+    const v = 50 + ((simDemand-100)/100)*sensitivity*55;
+    pts.push(Math.max(15, Math.min(95, v)));
+  }
+  const stepX = W/(pts.length-1);
+  const path = pts.map((v,i)=>`${i===0?'M':'L'}${(i*stepX).toFixed(1)},${(H-(v/100)*H).toFixed(1)}`).join(' ');
+  const last = pts[pts.length-1];
+  const lastColor = utilColorHex(utilStatus(last));
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}">
+    <path d="${path}" fill="none" stroke="var(--text-dim)" stroke-width="1.5" opacity="0.6"/>
+    <circle cx="${W}" cy="${(H-(last/100)*H).toFixed(1)}" r="3.5" fill="${lastColor}" />
+  </svg>`;
+}
+
+function renderBoilers() {
+  const grid = document.getElementById('boilerGrid');
+  grid.innerHTML = '';
+  let flagged = 0;
+  UTILITIES.forEach(u => {
+    const runPct = utilLoadPct(u);
+    const status = utilStatus(runPct);
+    if (status !== 'ok') flagged++;
+    const tempNow = u.tempRange[0] + (runPct/100)*(u.tempRange[1]-u.tempRange[0]);
+    const pressNow = u.pressRange[0] + (runPct/100)*(u.pressRange[1]-u.pressRange[0]);
+    const colorHex = utilColorHex(status);
+    const curStatus = getStatus(u.id);
+
+    const card = document.createElement('div');
+    card.className = 'boiler-card';
+    card.innerHTML = `
+      <div class="boiler-card-head">
+        <div><p class="boiler-name">${u.name}</p><p class="boiler-id mono">${u.id} · ${u.type}</p></div>
+        <span class="risk-badge ${status} mono">${runPct}% run</span>
+      </div>
+      <div class="dial-row">
+        <div class="dial-col">
+          ${arcGauge(((tempNow-u.tempRange[0])/(u.tempRange[1]-u.tempRange[0]))*100, colorHex, 130)}
+          <div class="dial-value">${tempNow.toFixed(0)}°C</div>
+          <div class="dial-caption">Temperature</div>
+        </div>
+        <div class="dial-col">
+          ${arcGauge(((pressNow-u.pressRange[0])/(u.pressRange[1]-u.pressRange[0]))*100, colorHex, 130)}
+          <div class="dial-value">${pressNow.toFixed(1)} bar</div>
+          <div class="dial-caption">Pressure</div>
+        </div>
+      </div>
+      <div class="sparkline-wrap">${sparkline(u.id, u.sensitivity)}</div>
+      <div class="boiler-footer">
+        <span>${statusLabel(status)}${overtime ? ' · OT' : ''}</span>
+        <span>${u.owner}</span>
+        <select class="status-select" data-id="${u.id}" data-kind="util">
+          <option value="planned" ${curStatus==='planned'?'selected':''}>Planned</option>
+          <option value="progress" ${curStatus==='progress'?'selected':''}>In progress</option>
+          <option value="resolved" ${curStatus==='resolved'?'selected':''}>Resolved</option>
+        </select>
+      </div>`;
+    grid.appendChild(card);
+    card.querySelector('select.status-select').addEventListener('change', (e) => {
+      planStatus[u.id] = e.target.value;
+      renderSop();
+    });
+  });
+  document.getElementById('boilerSummary').textContent =
+    `${flagged} of ${UTILITIES.length} utilities elevated or critical at ${demand}% demand${overtime ? ' · overtime active' : ''}`;
+}
+
+/* ---------- TEAM ---------- */
+const TEAM = [
+  { name: 'R. Chandran', expertise: 'Molding & Packaging', avail: 'shift' },
+  { name: 'S. Meenakshi', expertise: 'Filling Lines', avail: 'shift' },
+  { name: 'A. Ramesh', expertise: 'Sterilization', avail: 'shift' },
+  { name: 'V. Suresh', expertise: 'Boilers (Utilities)', avail: 'shift' },
+  { name: 'N. Iyer', expertise: 'Chillers (Utilities)', avail: 'oncall' },
+  { name: 'K. Bala', expertise: 'Electrical Systems', avail: 'shift' },
+  { name: 'P. Devi', expertise: 'Instrumentation', avail: 'oncall' },
+  { name: 'M. Arjun', expertise: 'Packaging', avail: 'off' },
+  { name: 'T. Selvi', expertise: 'Filling Lines', avail: 'oncall' },
+  { name: 'H. Karthik', expertise: 'Molding', avail: 'off' }
+];
+
+function neededExpertiseSet() {
+  const needed = new Set();
+  MACHINES.forEach(m => { if (statusFor(machineRisk(m)) !== 'ok') needed.add(m.expertise); });
+  UTILITIES.forEach(u => { if (utilStatus(utilLoadPct(u)) !== 'ok') needed.add(u.expertise); });
+  return needed;
+}
+
+function renderTeam() {
+  const needed = neededExpertiseSet();
+  const grid = document.getElementById('teamGrid');
+  grid.innerHTML = '';
+  let dispatchCount = 0;
+  TEAM.forEach(t => {
+    const isNeeded = [...needed].some(area => t.expertise.includes(area));
+    if (isNeeded) dispatchCount++;
+    const card = document.createElement('div');
+    card.className = 'team-card' + (isNeeded ? ' dispatch' : '');
+    const availClass = t.avail === 'shift' ? 'shift' : t.avail === 'oncall' ? 'oncall' : 'off';
+    const availLabel = t.avail === 'shift' ? 'On shift' : t.avail === 'oncall' ? 'On call' : 'Off shift';
+    card.innerHTML = `
+      <div class="team-top">
+        <div class="owner-avatar">${initials(t.name)}</div>
+        <div><p class="team-name">${t.name}</p><p class="team-expertise">${t.expertise}</p></div>
+      </div>
+      <div class="team-status-row">
+        <span class="availability ${availClass}">${availLabel}</span>
+        ${isNeeded ? '<span class="dispatch-tag">● Needed now</span>' : ''}
+      </div>`;
+    grid.appendChild(card);
+  });
+  const summary = document.getElementById('coverageSummary');
+  summary.innerHTML = `
+    <div class="coverage-stat"><div class="coverage-stat-val mono">${dispatchCount}</div><div class="coverage-stat-label">of 10 needed at current demand</div></div>
+    <div class="coverage-stat"><div class="coverage-stat-val mono">${TEAM.filter(t=>t.avail==='shift').length}</div><div class="coverage-stat-label">on shift right now</div></div>
+    <div class="coverage-stat"><div class="coverage-stat-val mono">${[...needed].length}</div><div class="coverage-stat-label">expertise areas in demand</div></div>`;
+}
+
+/* ---------- DEMAND & FORECAST ---------- */
+const HIST_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep'];
+const HIST_DEMAND = [82, 88, 91, 95, 90, 98, 104, 101, 108]; // thousands of units
+const BASE_CAPACITY = 112; // thousand units at 100% demand multiplier
+
+function movingAvgForecast(hist, n=3, months=3) {
+  const out = [];
+  let series = [...hist];
+  for (let i=0;i<months;i++){
+    const last = series.slice(-n);
+    const avg = last.reduce((a,b)=>a+b,0)/last.length;
+    const trendUp = (series[series.length-1]-series[series.length-2])*0.5;
+    out.push(Math.round(avg + trendUp));
+    series.push(out[out.length-1]);
+  }
+  return out;
+}
+
+function currentCapacity() {
+  // capacity degrades slightly with number of flagged assets
+  const flagged = MACHINES.filter(m=>statusFor(machineRisk(m))!=='ok').length +
+                   UTILITIES.filter(u=>utilStatus(utilLoadPct(u))!=='ok').length;
+  return Math.round(BASE_CAPACITY * (1 - flagged*0.045) * (demand/100 >= 1 ? 1 : 1));
+}
+
+function renderForecast() {
+  const forecast = movingAvgForecast(HIST_DEMAND, 3, 3);
+  const capacity = currentCapacity();
+  const projectedDemand = Math.round(HIST_DEMAND[HIST_DEMAND.length-1] * (demand/100));
+  const gap = projectedDemand - capacity;
+
+  const summary = document.getElementById('forecastSummary');
+  summary.innerHTML = `
+    <div class="coverage-stat"><div class="coverage-stat-val mono">${projectedDemand}k</div><div class="coverage-stat-label">projected demand at ${demand}%</div></div>
+    <div class="coverage-stat"><div class="coverage-stat-val mono">${capacity}k</div><div class="coverage-stat-label">current production capacity</div></div>
+    <div class="coverage-stat"><div class="coverage-stat-val mono" style="color:${gap>0?'var(--crit)':'var(--ok)'}">${gap>0?'+':''}${gap}k</div><div class="coverage-stat-label">${gap>0?'supply-demand gap':'surplus capacity'}</div></div>
+  `;
+
+  const allMonths = [...HIST_MONTHS, 'Oct*','Nov*','Dec*'];
+  const allVals = [...HIST_DEMAND, ...forecast];
+  const W=900, H=260, padL=44, padR=20, padT=20, padB=36;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  const maxV = Math.max(...allVals, capacity) * 1.12;
+  const stepX = plotW/(allMonths.length-1);
+  const yOf = v => padT + (1 - v/maxV)*plotH;
+
+  const actualPts = HIST_DEMAND.map((v,i)=>[padL+i*stepX, yOf(v)]);
+  const forecastPts = [ [padL+(HIST_DEMAND.length-1)*stepX, yOf(HIST_DEMAND[HIST_DEMAND.length-1])],
+    ...forecast.map((v,i)=>[padL+(HIST_DEMAND.length+i)*stepX, yOf(v)]) ];
+  const actualPath = actualPts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  const forecastPath = forecastPts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  const capY = yOf(capacity);
+
+  let gridLines='', xLabels='';
+  const gridStep = Math.ceil(maxV/5/10)*10;
+  for (let v=0; v<=maxV; v+=gridStep){
+    const y=yOf(v);
+    gridLines += `<line class="grid-line" x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" /><text class="axis-label" x="${padL-8}" y="${y+3}" text-anchor="end">${v}k</text>`;
+  }
+  allMonths.forEach((mo,i)=>{
+    xLabels += `<text class="axis-label" x="${padL+i*stepX}" y="${H-10}" text-anchor="middle">${mo}</text>`;
+  });
+
+  document.getElementById('forecastChart').innerHTML = `
+    ${gridLines}
+    <line x1="${padL}" y1="${capY}" x2="${W-padR}" y2="${capY}" stroke="var(--ok)" stroke-width="1.6" stroke-dasharray="2 3"/>
+    <text class="axis-label" x="${W-padR}" y="${capY-6}" text-anchor="end" fill="var(--ok)">capacity ${capacity}k</text>
+    <path d="${actualPath}" fill="none" stroke="var(--text-muted)" stroke-width="2.2"/>
+    <path d="${forecastPath}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-dasharray="5 4"/>
+    ${actualPts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="var(--text-muted)"/>`).join('')}
+    ${forecastPts.slice(1).map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="var(--accent)"/>`).join('')}
+    ${xLabels}
+  `;
+}
+
+/* ---------- S&OP SNAPSHOT ---------- */
+function renderSop() {
+  const forecast = movingAvgForecast(HIST_DEMAND, 3, 3);
+  const capacity = currentCapacity();
+  const projectedDemand = Math.round(HIST_DEMAND[HIST_DEMAND.length-1] * (demand/100));
+  const gap = projectedDemand - capacity;
+  const flaggedMachines = MACHINES.filter(m=>statusFor(machineRisk(m))!=='ok');
+  const flaggedUtils = UTILITIES.filter(u=>utilStatus(utilLoadPct(u))!=='ok');
+  const spareOrders = MACHINES.filter(m=>!m.inStock && statusFor(machineRisk(m))!=='ok');
+  const needed = neededExpertiseSet();
+  const dispatchCount = TEAM.filter(t=>[...needed].some(a=>t.expertise.includes(a))).length;
+
+  document.getElementById('sopGrid').innerHTML = `
+    <div class="sop-card">
+      <p class="sop-card-label">Supply-demand gap</p>
+      <p class="sop-card-value" style="color:${gap>0?'var(--crit)':'var(--ok)'}">${gap>0?'+':''}${gap}k units</p>
+      <p class="sop-card-sub">${projectedDemand}k projected vs ${capacity}k capacity</p>
+    </div>
+    <div class="sop-card">
+      <p class="sop-card-label">Equipment flagged</p>
+      <p class="sop-card-value" style="color:var(--warn)">${flaggedMachines.length + flaggedUtils.length}</p>
+      <p class="sop-card-sub">${flaggedMachines.length} machines · ${flaggedUtils.length} utilities</p>
+    </div>
+    <div class="sop-card">
+      <p class="sop-card-label">Procurement actions</p>
+      <p class="sop-card-value" style="color:var(--accent)">${spareOrders.length}</p>
+      <p class="sop-card-sub">spare orders required this cycle</p>
+    </div>
+    <div class="sop-card">
+      <p class="sop-card-label">Team dispatch needed</p>
+      <p class="sop-card-value">${dispatchCount} <span style="font-size:14px; color:var(--text-dim);">/ 10</span></p>
+      <p class="sop-card-sub">${[...needed].length} expertise areas active</p>
+    </div>
+  `;
+
+  const openItems = [
+    ...flaggedMachines.map(m => ({ id:m.id, label:`${m.name} — ${statusLabel(statusFor(machineRisk(m)))}`, owner:m.owner })),
+    ...flaggedUtils.map(u => ({ id:u.id, label:`${u.name} — ${statusLabel(utilStatus(utilLoadPct(u)))}`, owner:u.owner }))
+  ];
+  const list = document.getElementById('sopList');
+  if (openItems.length === 0) {
+    list.innerHTML = `<div class="sop-list-item"><span>No open items at current demand settings.</span><span class="sop-status resolved">All clear</span></div>`;
+  } else {
+    list.innerHTML = openItems.map(item => {
+      const st = getStatus(item.id);
+      return `<div class="sop-list-item">
+        <span>${item.label} <span style="color:var(--text-dim); font-size:11.5px;">· ${item.owner}</span></span>
+        <span class="sop-status ${statusChipClass(st)}">${statusChipLabel(st)}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+/* ---------- ALARMS ---------- */
+function renderAlarms() {
+  const strip = document.getElementById('alarmStrip');
+  const alarms = [];
+  MACHINES.forEach(m => {
+    const risk = machineRisk(m);
+    if (statusFor(risk) === 'crit') {
+      const topBatch = m.batches[0];
+      alarms.push(`${m.id} critical (${risk}%) — ${topBatch ? topBatch.name + ' at risk' : 'production at risk'}`);
+    }
+  });
+  UTILITIES.forEach(u => {
+    const pct = utilLoadPct(u);
+    if (utilStatus(pct) === 'crit') alarms.push(`${u.id} critical — running at ${pct}% of safe limit`);
+  });
+
+  if (alarms.length === 0) {
+    strip.className = 'alarm-strip empty';
+    strip.innerHTML = `<span class="alarm-ok-msg">✓ No critical alarms at current demand settings</span>`;
+  } else {
+    strip.className = 'alarm-strip';
+    strip.innerHTML = alarms.map(a => `<span class="alarm-chip"><span class="dot"></span>${a}</span>`).join('');
+  }
+}
+
+/* ---------- global render + wiring ---------- */
+function renderAll() {
+  renderAlarms();
+  renderMachines(); renderMachineDetail(); renderChart();
+  renderBoilers();
+  renderTeam();
+  renderForecast();
+  renderSop();
+}
+
+document.getElementById('demandSlider').addEventListener('input', (e) => {
+  demand = parseInt(e.target.value, 10);
+  document.getElementById('demandValue').textContent = demand + '%';
+  renderAll();
+});
+document.getElementById('overtimeToggle').addEventListener('change', (e) => {
+  overtime = e.target.checked;
+  renderAll();
+});
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+renderAll();
+</script>
+</body>
+</html>
